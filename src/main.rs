@@ -150,6 +150,8 @@ where T : Iterator<Item=& 'a u8>
   return val
 }
 
+// loops through a products reference data (key/val) and
+// returns the value for symbol
 fn get_attr_symbol(prod_acct: &Product) -> String {
   let mut pr_attr_sz = prod_acct.size as usize - PROD_HDR_SIZE;
   let mut pr_attr_it = (&prod_acct.attr[..]).iter();
