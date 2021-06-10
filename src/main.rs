@@ -104,7 +104,7 @@ fn main() {
       println!("looping through price accounts");
       // print all Prices that correspond to this Product
       if prod_acct.px_acc.is_valid() {
-        let mut px_pkey = Pubkey::new( &prod_acct.px_acc.val );
+        let px_pkey = Pubkey::new( &prod_acct.px_acc.val );
         loop {
           let pd = rpc_client.get_account_data( &px_pkey ).unwrap();
           let pa = cast::<Price>( &pd );
@@ -122,13 +122,7 @@ fn main() {
           println!( "    conf ......... {}", pa.agg.conf );
           println!( "    valid_slot ... {}", pa.valid_slot );
           println!( "    publish_slot . {}", pa.agg.pub_slot );
-
-          // go to next price account in list
-          if pa.next.is_valid() {
-            px_pkey = Pubkey::new( &pa.next.val );
-          } else {
-            break;
-          }
+          return
         }
       }
       // go to next product
