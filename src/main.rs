@@ -244,10 +244,11 @@ fn calculate_twap(
     interval: Duration,
 ) -> u64 {
     for sig in signatures {
+        println!("slot: {}", sig.slot);
         let e = sig.err;
         match e {
             Some(_) => continue,
-            None => println!(""),
+            None => (),
         }
         let s = Signature::from_str(&sig.signature).unwrap();
         println!("sig: {}", s);
