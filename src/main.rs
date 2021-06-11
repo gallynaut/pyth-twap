@@ -1,16 +1,26 @@
 use chrono::{Duration, TimeZone, Utc};
 use clap::{App, Arg};
+use pyth_client::{
+    AccountType, Mapping, Price, PriceStatus, PriceType, Product, MAGIC, PROD_HDR_SIZE, VERSION_1,
+};
 use solana_client::rpc_client::{GetConfirmedSignaturesForAddress2Config, RpcClient};
 use solana_client::rpc_response::RpcConfirmedTransactionStatusWithSignature;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::Signature;
+use solana_transaction_status::UiTransactionEncoding;
+use std::str;
 use std::str::FromStr;
 
-use pyth_client::{
-    cast, AccountType, CorpAction, Mapping, Price, PriceStatus, PriceType, Product, MAGIC,
-    PROD_HDR_SIZE, VERSION_1,
-};
+#[repr(C)]
+pub struct UpdatePriceData {
+    pub version: u32,
+    pub cmd: i32,
+    pub status: PriceStatus,
+    pub unused: u32,
+    pub price: i64,
+    pub conf: u64,
+    pub pub_slot: u64,
+}
 
 fn main() {
     // validate command line arguements
@@ -82,7 +92,7 @@ fn main() {
 
     loop {
         let map_data = rpc_client.get_account_data(&akey).unwrap();
-        let map_acct = cast::<Mapping>(&map_data);
+        let map_acct = cast::<Mapping>(&map_data).unwrap();
         assert_eq!(map_acct.magic, MAGIC, "not a valid pyth account");
         assert_eq!(
             map_acct.atype,
@@ -99,7 +109,7 @@ fn main() {
         for prod_akey in &map_acct.products {
             let prod_pkey = Pubkey::new(&prod_akey.val);
             let prod_data = rpc_client.get_account_data(&prod_pkey).unwrap();
-            let prod_acct = cast::<Product>(&prod_data);
+            let prod_acct = cast::<Product>(&prod_data).unwrap();
             assert_eq!(prod_acct.magic, MAGIC, "not a valid pyth account");
             assert_eq!(
                 prod_acct.atype,
@@ -123,7 +133,7 @@ fn main() {
                 println!("price_account .. {:?}", px_pkey);
 
                 let pd = rpc_client.get_account_data(&px_pkey).unwrap();
-                let pa = cast::<Price>(&pd);
+                let pa = cast::<Price>(&pd).unwrap();
                 assert_eq!(pa.magic, MAGIC, "not a valid pyth account");
                 assert_eq!(
                     pa.atype,
@@ -172,6 +182,7 @@ fn main() {
                     }
                 }
                 println!("{}", signatures.first().unwrap().block_time.unwrap());
+                let _rslt = calculate_twap(rpc_client, signatures, interval);
                 return;
             }
             // go to next product
@@ -227,29 +238,45 @@ fn get_price_type(ptype: &PriceType) -> &'static str {
     }
 }
 
-// fn get_status(st: &PriceStatus) -> &'static str {
-//     match st {
-//         PriceStatus::Unknown => "unknown",
-//         PriceStatus::Trading => "trading",
-//         PriceStatus::Halted => "halted",
-//         PriceStatus::Auction => "auction",
-//     }
-// }
-
-// fn get_corp_act(cact: &CorpAction) -> &'static str {
-//     match cact {
-//         CorpAction::NoCorpAct => "nocorpact",
-//     }
-// }
-
 fn calculate_twap(
+    client: RpcClient,
     signatures: Vec<RpcConfirmedTransactionStatusWithSignature>,
     interval: Duration,
 ) -> u64 {
-    for s in signatures {
-        let 
+    for sig in signatures {
+        let e = sig.err;
+        match e {
+            Some(_) => continue,
+            None => println!(""),
+        }
+        let s = Signature::from_str(&sig.signature).unwrap();
+        println!("sig: {}", s);
+        let txn = client
+            .get_transaction(&s, UiTransactionEncoding::Base64)
+            .unwrap();
+        // deserialize into struct
+        // let enc: EncodedConfirmedTransaction = serde_json::from_str(&txn).unwrap();
+
+        let t = txn.transaction.transaction;
+        let t = t.decode().unwrap();
+        let i = t.message.instructions.first().unwrap();
+        let d = &i.data;
+        println!("raw: {:?}", d);
+        let data = cast::<UpdatePriceData>(&d);
+        match data {
+            Some(d) => println!("p: {:?}, conf: {:?}", d.price, d.conf),
+            None => continue,
+        }
     }
 
-
     return 0;
+}
+
+pub fn cast<T>(d: &[u8]) -> Option<&T> {
+    let (_, pxa, _) = unsafe { d.align_to::<T>() };
+    if pxa.len() > 0 {
+        Some(&pxa[0])
+    } else {
+        None
+    }
 }

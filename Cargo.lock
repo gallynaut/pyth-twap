@@ -1965,6 +1965,7 @@ dependencies = [
  "solana-client",
  "solana-program",
  "solana-sdk",
+ "solana-transaction-status",
 ]
 
 [[package]]
