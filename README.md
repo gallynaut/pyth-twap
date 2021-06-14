@@ -21,7 +21,7 @@ This example will calulcate the TWAP for BTC/USD over a 60m interval.
 pyth-twap BTC/USD
 ```
 ### Advanced
-This example will calculate the TWAP for DOGE/USD over a 60m interval on a local Solana instance with debugging turned on.
+This example will calculate the TWAP for DOGE/USD over a 15m interval on a local Solana instance with debugging turned on.
 ```bash
-pyth-twap DOGE/USD -i 60 -l -d
+pyth-twap DOGE/USD -i 15 -l -d
 ```
