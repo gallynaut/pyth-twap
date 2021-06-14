@@ -11,30 +11,9 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::str;
 use std::str::FromStr;
 use std::time::{Duration as StdDuration, UNIX_EPOCH};
-
-#[derive(Debug, Clone, Copy)]
-pub struct PriceFeed {
-    pub price: i64,
-    pub conf: u64,
-    pub pub_slot: u64,
-    pub time: DateTime<Utc>,
-    pub twap: f64,
-}
-impl Default for PriceFeed {
-    fn default() -> Self {
-        PriceFeed {
-            price: 0,
-            conf: 0,
-            pub_slot: 0,
-            time: Utc::now(),
-            twap: 0.0,
-        }
-    }
-}
 
 #[repr(C)]
 pub struct UpdatePriceData {
@@ -94,15 +73,13 @@ fn main() {
         .value_of("interval")
         .unwrap()
         .parse::<i64>()
-        .unwrap()
-        .checked_mul(60) ////////
         .unwrap();
-    if interval < 0 && interval > 1440 * 60 {
+    if interval == 0 || interval > 1440 {
         // panic
-        println!("interval should be between 0 and 1440 minutes (1 day)");
+        println!("interval should be between 1 and 1440 minutes (1 day)");
         return;
     }
-    let interval = Duration::seconds(interval);
+    let interval = Duration::seconds(interval.checked_mul(60).unwrap());
     let interval_min = interval.num_minutes();
     let interval_microseconds = interval.num_microseconds().unwrap();
     println!("Value for interval: {} minute(s)", interval_min);
@@ -117,8 +94,6 @@ fn main() {
 
     println!("Connecting to Solana @: {}", url);
     let rpc_client = RpcClient::new(url.to_string());
-
-    ////////////////////////////////////////////
 
     // read pyth_map_key account data and verify it is the correct account
     // mapping accounts stored as linked list so we iterate until empty
@@ -310,6 +285,7 @@ fn main() {
             let high_price = (high as f32) * scale_factor;
             let twap_price = (open_price + close_price + low_price + high_price) / 4.0;
 
+            println!("");
             println!("TWAP Interval: {} minutes", interval_min);
             println!("Open: ${} ({})", open_price, open_slot);
             println!("High: ${}", high_price);
