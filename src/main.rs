@@ -61,7 +61,7 @@ fn main() {
                 .short("i")
                 .help("the interval to calculate the TWAP over in minutes")
                 .takes_value(true)
-                .default_value("15")
+                .default_value("60")
                 .required(false),
         )
         .get_matches();
@@ -135,7 +135,6 @@ fn main() {
             );
 
             // loop through reference attributes and find symbol
-            // println!("product_account .. {:?}", prod_pkey);
             let pr_attr_sym = get_attr_symbol(prod_acct);
             if pr_attr_sym != symbol {
                 i += 1;
@@ -145,9 +144,9 @@ fn main() {
                 if matches.is_present("debug") {
                     println!("symbols do not match {} v {}", symbol, pr_attr_sym);
                 }
-
                 continue;
             }
+            println!("product_account .. {:?}", prod_pkey);
 
             if !prod_acct.px_acc.is_valid() {
                 println!("pyth error: price account is invalid");
@@ -205,7 +204,6 @@ fn main() {
                     rpc_client.get_signatures_for_address_with_config(&px_pkey, rqt_config);
                 let px_sig_rslt = px_sigs.unwrap();
                 for sig in px_sig_rslt {
-                    // let mut pf = PriceFeed::default();
                     // check for signature error
                     let e = sig.err;
                     match e {
@@ -231,8 +229,7 @@ fn main() {
                     let t = txn.transaction.transaction.decode().unwrap(); // transaction
                     let instrs = t.message.instructions;
                     let i = &instrs.first().unwrap(); // first instruction
-                    let d = &i.data; // data
-                                     // cast data to pyth object
+                    let d = &i.data;
                     let data = cast::<UpdatePriceData>(&d);
                     match data {
                         None => continue,
@@ -264,12 +261,11 @@ fn main() {
                     // should be comparing confidence value but data is inconsistent
                     map.insert(data.pub_slot, data.price);
 
-                    // update progress b ar
+                    // update progress bar
                     let progress_microseconds = (start - block_t).num_microseconds().unwrap();
                     let time_progress =
                         (100.0 * progress_microseconds as f32) / (interval_microseconds as f32);
                     progress_bar.set_progression(time_progress as usize);
-                    // println!("Progress: {}", time_progress);
                 }
             }
 
@@ -292,7 +288,6 @@ fn main() {
             println!("Low: ${}", low_price);
             println!("Close: ${} ({})", close_price, close_slot);
             println!("TWAP Price: ${}", twap_price);
-            // let _rslt = calculate_twap(rpc_client, signatures, interval);
             return;
         }
         // go to next Mapping account in list
@@ -302,6 +297,10 @@ fn main() {
         akey = Pubkey::new(&map_acct.next.val);
     }
     println!("No matching symbol found for {}", symbol);
+    println!(
+        "See {} for a list of symbols",
+        "https://pyth.network/markets/"
+    );
     return;
 }
 
