@@ -10,7 +10,10 @@ Pyth-TWAP takes in a symbol (BTC/USD) and an optional interval in minutes (defau
 | Pyth mapping key | N | Public key of the Pyth mapping account. Default value is ArppEFcsybCLE8CRtQJLQ9tLv2peGmQoKWFuiUWm4KBP |
 | local | N | Flag to run on a local Solana instance |
 | debug | N | Flag to turn on verbose logging |
-
+For more help run
+```bash
+pyth-twap --help
+```
 ### Basic
 This example will calulcate the TWAP for BTC/USD over a 15m interval.
 ```bash
