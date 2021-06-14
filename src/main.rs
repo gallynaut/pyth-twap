@@ -1,6 +1,8 @@
 use chrono::prelude::DateTime;
 use chrono::{Duration, Utc};
 use clap::{App, Arg};
+use progress_bar::color::{Color, Style};
+use progress_bar::progress_bar::ProgressBar;
 use pyth_client::{
     AccountType, Mapping, Price, PriceStatus, PriceType, Product, MAGIC, PROD_HDR_SIZE, VERSION_1,
 };
@@ -9,6 +11,7 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::str;
 use std::str::FromStr;
 use std::time::{Duration as StdDuration, UNIX_EPOCH};
@@ -57,6 +60,11 @@ fn main() {
                 .required(true),
         )
         .arg(
+            Arg::with_name("debug")
+                .help("print debug information verbosely")
+                .short("d"),
+        )
+        .arg(
             Arg::with_name("local")
                 .short("l")
                 .help("run on a local instance of solana (http://localhost:8899)"),
@@ -91,14 +99,16 @@ fn main() {
         .unwrap();
     if interval < 0 && interval > 1440 * 60 {
         // panic
-        println!("interval should be between 0 and 1440 minutes");
+        println!("interval should be between 0 and 1440 minutes (1 day)");
         return;
     }
     let interval = Duration::seconds(interval);
-    println!("Value for interval: {:?}", interval);
+    let interval_min = interval.num_minutes();
+    let interval_microseconds = interval.num_microseconds().unwrap();
+    println!("Value for interval: {} minute(s)", interval_min);
 
     let pyth_map_key = matches.value_of("pyth").unwrap();
-    println!("using new pyth map key: {}", pyth_map_key);
+    println!("using pyth map key: {}", pyth_map_key);
 
     let mut url = "http://api.devnet.solana.com";
     if matches.is_present("local") {
@@ -157,7 +167,10 @@ fn main() {
                 if i == map_acct.num {
                     break;
                 }
-                println!("symbols do not match {} v {}", symbol, pr_attr_sym);
+                if matches.is_present("debug") {
+                    println!("symbols do not match {} v {}", symbol, pr_attr_sym);
+                }
+
                 continue;
             }
 
@@ -186,17 +199,22 @@ fn main() {
                 "couldnt find price account with type price"
             );
 
+            println!("");
+            println!("Parsing price account transactions");
+            let mut progress_bar = ProgressBar::new(100);
+            progress_bar.set_action(" Progress", Color::Blue, Style::Bold);
+
             // Loop through transactions and get last N transactions over the given interval in hours
             let start = Utc::now();
             let mut last_sig: Option<Signature> = None;
 
             // do we even need to store this?
             // https://uniswap.org/docs/v2/core-concepts/oracles/
-            let mut price_feed: Vec<PriceFeed> = Vec::new();
+            let mut map = HashMap::new(); // <slot, price>
             let mut high: i64 = 0;
-            let mut low: i64 = 0;
-            let mut open: i64 = 0;
-            let mut close: i64 = 0;
+            let mut low: i64 = std::i64::MAX;
+            let mut open_slot: u64 = std::u64::MAX;
+            let mut close_slot: u64 = 0;
             'process_px_acct: loop {
                 let rqt_config = GetConfirmedSignaturesForAddress2Config {
                     before: last_sig,
@@ -204,12 +222,15 @@ fn main() {
                     limit: None,
                     commitment: None,
                 };
-                println!("getting next batch of transactions");
+                if matches.is_present("debug") {
+                    println!("getting next batch of transactions");
+                }
+
                 let px_sigs =
                     rpc_client.get_signatures_for_address_with_config(&px_pkey, rqt_config);
                 let px_sig_rslt = px_sigs.unwrap();
                 for sig in px_sig_rslt {
-                    let mut pf = PriceFeed::default();
+                    // let mut pf = PriceFeed::default();
                     // check for signature error
                     let e = sig.err;
                     match e {
@@ -221,7 +242,9 @@ fn main() {
                     let block_t = UNIX_EPOCH + StdDuration::from_secs(block_t);
                     let block_t = DateTime::<Utc>::from(block_t);
                     if (start - block_t) > interval {
-                        println!("interval exceeded, breaking out of loop");
+                        if matches.is_present("debug") {
+                            println!("interval exceeded, breaking out of loop");
+                        }
                         break 'process_px_acct;
                     }
                     // request transaction from signature
@@ -246,42 +269,53 @@ fn main() {
                         continue;
                     }
 
-                    pf.price = data.price;
-                    pf.conf = data.conf;
-                    pf.pub_slot = data.pub_slot;
-                    pf.time = block_t;
-                    println!("{}: p: {}, c: {}", pf.pub_slot, pf.price, pf.conf);
-                    if price_feed.len() == 0 {
-                        close = pf.price;
-                        high = pf.price;
-                        low = pf.price;
-                        price_feed.push(pf);
-                        continue;
+                    if matches.is_present("debug") {
+                        println!("{}: p: {}, c: {}", data.pub_slot, data.price, data.conf);
                     }
-                    if pf.price > high {
-                        high = pf.price
+
+                    if data.price < low {
+                        low = data.price
                     }
-                    if pf.price < low {
-                        low = pf.price
+                    if data.price > high {
+                        high = data.price
                     }
-                    price_feed.push(pf);
+                    if data.pub_slot < open_slot {
+                        open_slot = data.pub_slot
+                    }
+                    if data.pub_slot > close_slot {
+                        close_slot = data.pub_slot
+                    }
+                    // insert into hashmap. Updates price if pub_slot exist
+                    // should be comparing confidence value but data is inconsistent
+                    map.insert(data.pub_slot, data.price);
+
+                    // update progress b ar
+                    let progress_microseconds = (start - block_t).num_microseconds().unwrap();
+                    let time_progress =
+                        (100.0 * progress_microseconds as f32) / (interval_microseconds as f32);
+                    progress_bar.set_progression(time_progress as usize);
+                    // println!("Progress: {}", time_progress);
                 }
-                // reached end of loop but not done yet
-                // let last_s = px_sig_rslt.last().unwrap();
-                // let last_s = Signature::from_str(last_s.signature);
-                // last_sig = Some(last_s);
             }
 
             // calculate twap using first and last value over accrued interval
-            open = price_feed.last().unwrap().price;
-            let twap = (open + close + high + low) / 4;
-            // let twap_price = twap /
-            println!("TWAP Interval: {}", interval);
-            println!("Open: {}", open);
-            println!("High: {}", high);
-            println!("Low: {}", low);
-            println!("Close: {}", close);
-            println!("TWAP Price: {}", twap);
+            let open = map.get(&open_slot).unwrap();
+            let close = map.get(&close_slot).unwrap();
+
+            let base: f32 = 10.0;
+            let scale_factor: f32 = base.powi(pa.expo);
+            let open_price = (*open as f32) * scale_factor;
+            let close_price = (*close as f32) * scale_factor;
+            let low_price = (low as f32) * scale_factor;
+            let high_price = (high as f32) * scale_factor;
+            let twap_price = (open_price + close_price + low_price + high_price) / 4.0;
+
+            println!("TWAP Interval: {} minutes", interval_min);
+            println!("Open: ${} ({})", open_price, open_slot);
+            println!("High: ${}", high_price);
+            println!("Low: ${}", low_price);
+            println!("Close: ${} ({})", close_price, close_slot);
+            println!("TWAP Price: ${}", twap_price);
             // let _rslt = calculate_twap(rpc_client, signatures, interval);
             return;
         }
