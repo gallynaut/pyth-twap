@@ -193,10 +193,10 @@ fn main() {
             // do we even need to store this?
             // https://uniswap.org/docs/v2/core-concepts/oracles/
             let mut price_feed: Vec<PriceFeed> = Vec::new();
-            let mut high: u64;
-            let mut low: u64;
-            let mut open: u64;
-            let mut close: u64;
+            let mut high: i64 = 0;
+            let mut low: i64 = 0;
+            let mut open: i64 = 0;
+            let mut close: i64 = 0;
             'process_px_acct: loop {
                 let rqt_config = GetConfirmedSignaturesForAddress2Config {
                     before: last_sig,
@@ -251,37 +251,20 @@ fn main() {
                     pf.pub_slot = data.pub_slot;
                     pf.time = block_t;
                     println!("{}: p: {}, c: {}", pf.pub_slot, pf.price, pf.conf);
-                    // compare previous result price/conf then add to vec
                     if price_feed.len() == 0 {
-                        pf.twap = 0.0;
+                        close = pf.price;
+                        high = pf.price;
+                        low = pf.price;
                         price_feed.push(pf);
                         continue;
                     }
-                    let last = price_feed.last();
-                    let mut last = match last {
-                        Some(last) => last,
-                        None => continue, // ?????????
-                    };
-                    if last.pub_slot == pf.pub_slot {
-                        if last.conf < pf.conf {
-                            // println!("overwriting data because confidence is lower");
-                            price_feed.remove(price_feed.len() - 1);
-                            let new_last = price_feed.last();
-                            last = match new_last {
-                                Some(new_last) => new_last,
-                                None => continue,
-                            };
-                            // last = price_feed.last().unwrap();
-                        } else {
-                            // println!("confidence is higher, skipping");
-                            continue;
-                        }
+                    if pf.price > high {
+                        high = pf.price
                     }
-                    let dur = (last.time - pf.time).num_nanoseconds().unwrap();
-                    // println!("{} ----> {} ({})", last.time, pf.time, dur);
+                    if pf.price < low {
+                        low = pf.price
+                    }
                     price_feed.push(pf);
-
-                    // pf.twap = (last.time -
                 }
                 // reached end of loop but not done yet
                 // let last_s = px_sig_rslt.last().unwrap();
@@ -290,7 +273,15 @@ fn main() {
             }
 
             // calculate twap using first and last value over accrued interval
-
+            open = price_feed.last().unwrap().price;
+            let twap = (open + close + high + low) / 4;
+            // let twap_price = twap /
+            println!("TWAP Interval: {}", interval);
+            println!("Open: {}", open);
+            println!("High: {}", high);
+            println!("Low: {}", low);
+            println!("Close: {}", close);
+            println!("TWAP Price: {}", twap);
             // let _rslt = calculate_twap(rpc_client, signatures, interval);
             return;
         }
