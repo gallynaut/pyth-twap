@@ -24,14 +24,14 @@ fn main() {
             panic!("Pyth Err: {:?}", error)
         }
     };
-    println!("price_account .. {:?}", p);
+    println!("price_account .. {:?}", p.key);
 
     println!("");
     println!("Parsing price account transactions");
     let mut progress_bar = ProgressBar::new(100);
     progress_bar.set_action(" Progress", Color::Blue, Style::Bold);
 
-    // Loop through transactions and get last N transactions over the given interval in hours
+    // Loop through transactions and get last N transactions over the given interval
     let start = Utc::now();
     let mut last_sig: Option<Signature> = None;
 
@@ -55,7 +55,7 @@ fn main() {
 
         let px_sigs = c
             .rpc_client
-            .get_signatures_for_address_with_config(&p, rqt_config);
+            .get_signatures_for_address_with_config(&p.key, rqt_config);
         let px_sig_rslt = px_sigs.unwrap();
         for sig in px_sig_rslt {
             // check for signature error
@@ -130,7 +130,7 @@ fn main() {
     let close = map.get(&close_slot).unwrap();
 
     let base: f32 = 10.0;
-    let scale_factor: f32 = base.powi(-9);
+    let scale_factor: f32 = base.powi(p.expo);
     let open_price = (*open as f32) * scale_factor;
     let close_price = (*close as f32) * scale_factor;
     let low_price = (low as f32) * scale_factor;

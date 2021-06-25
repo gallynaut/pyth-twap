@@ -15,6 +15,11 @@ pub struct UpdatePriceData {
     pub pub_slot: u64,
 }
 
+pub struct PriceAccount {
+    pub key: Pubkey,
+    pub expo: i32,
+}
+
 pub fn get_attr_str<'a, T>(ite: &mut T) -> String
 where
     T: Iterator<Item = &'a u8>,
@@ -61,7 +66,7 @@ pub fn cast<T>(d: &[u8]) -> Option<&T> {
     }
 }
 
-pub fn get_price_account(c: &config::Config) -> Result<Pubkey, &'static str> {
+pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static str> {
     // read pyth_map_key account data and verify it is the correct account
     // mapping accounts stored as linked list so we iterate until empty
     let mut akey = Pubkey::from_str(&c.pyth_key).unwrap();
@@ -123,6 +128,7 @@ pub fn get_price_account(c: &config::Config) -> Result<Pubkey, &'static str> {
             // check if price account is valid
             let px_pkey = Pubkey::new(&prod_acct.px_acc.val);
             let pd = c.rpc_client.get_account_data(&px_pkey).unwrap();
+
             let pa = cast::<Price>(&pd).unwrap();
             assert_eq!(pa.magic, MAGIC, "not a valid pyth account");
             assert_eq!(
@@ -140,7 +146,10 @@ pub fn get_price_account(c: &config::Config) -> Result<Pubkey, &'static str> {
                 "couldnt find price account with type price"
             );
 
-            return Ok(px_pkey);
+            return Ok(PriceAccount {
+                key: px_pkey,
+                expo: pa.expo,
+            });
         }
         // go to next Mapping account in list
         if !map_acct.next.is_valid() {
@@ -155,3 +164,24 @@ pub fn get_price_account(c: &config::Config) -> Result<Pubkey, &'static str> {
     );
     return Err("price account not found");
 }
+
+// pub fn get_price_data(data: [u8]) -> Result<Price, &'static str> {
+//     let pd = c.rpc_client.get_account_data(&px_pkey).unwrap();
+//     let pa = cast::<Price>(&pd).unwrap();
+//     assert_eq!(pa.magic, MAGIC, "not a valid pyth account");
+//     assert_eq!(
+//         pa.atype,
+//         AccountType::Price as u32,
+//         "not a valid pyth price account"
+//     );
+//     assert_eq!(pa.ver, VERSION_1, "unexpected pyth price account version");
+
+//     // price accounts are stored as linked list
+//     // if first acct type doesnt equal price then panic
+//     assert_eq!(
+//         get_price_type(&pa.ptype),
+//         "price",
+//         "couldnt find price account with type price"
+//     );
+//     Ok(pa)
+// }
