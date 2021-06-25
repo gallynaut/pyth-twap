@@ -1,12 +1,13 @@
 use chrono::Duration;
 use clap::{App, Arg};
+use solana_client::rpc_client::RpcClient;
 
 pub struct Config {
     pub symbol: String,
     pub interval: Duration,
     pub pyth_key: String,
-    pub solana_url: String,
     pub debug: bool,
+    pub rpc_client: RpcClient,
 }
 
 impl Config {
@@ -60,10 +61,10 @@ impl Config {
             .unwrap();
         if interval == 0 || interval > 1440 {
             // panic
-
             return Err("interval should be between 1 and 1440 minutes (1 day)");
         }
         let interval = Duration::seconds(interval.checked_mul(60).unwrap());
+        println!("Value for interval: {} minute(s)", interval.num_minutes());
 
         let pyth_key = matches.value_of("pyth").unwrap().to_string();
         println!("using pyth map key: {}", pyth_key);
@@ -74,14 +75,15 @@ impl Config {
         }
         let debug = matches.is_present("debug");
 
+        println!("Connecting to Solana @: {}", url);
+        let rpc_client = RpcClient::new(url.to_string());
+
         Ok(Config {
             symbol,
             interval,
             pyth_key,
-            solana_url: url.to_string(),
             debug,
+            rpc_client,
         })
     }
 }
-
-// pub fn parse_config() -> Option<Config> {}

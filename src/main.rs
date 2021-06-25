@@ -3,9 +3,9 @@ use chrono::prelude::DateTime;
 use chrono::Utc;
 use progress_bar::color::{Color, Style};
 use progress_bar::progress_bar::ProgressBar;
-use pyth_client::{AccountType, Mapping, Price, PriceStatus, Product, MAGIC, VERSION_1};
-use pyth_twap::{cast, get_attr_symbol, get_price_type};
-use solana_client::rpc_client::{GetConfirmedSignaturesForAddress2Config, RpcClient};
+use pyth_client::{AccountType, Mapping, Price, Product, MAGIC, VERSION_1};
+use pyth_twap::{cast, get_attr_symbol, get_price_type, UpdatePriceData};
+use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
@@ -14,37 +14,18 @@ use std::process;
 use std::str::FromStr;
 use std::time::{Duration as StdDuration, UNIX_EPOCH};
 
-#[repr(C)]
-pub struct UpdatePriceData {
-    pub version: u32,
-    pub cmd: i32,
-    pub status: PriceStatus,
-    pub unused: u32,
-    pub price: i64,
-    pub conf: u64,
-    pub pub_slot: u64,
-}
-
 fn main() {
     let c = config::Config::new().unwrap_or_else(|err| {
         println!("Config Err: {}", err);
         process::exit(1);
     });
 
-    // clean up interval times for easier use
-    let interval_min = c.interval.num_minutes();
-    let interval_microseconds = c.interval.num_microseconds().unwrap();
-    println!("Value for interval: {} minute(s)", interval_min);
-
-    println!("Connecting to Solana @: {}", c.solana_url);
-    let rpc_client = RpcClient::new(c.solana_url);
-
     // read pyth_map_key account data and verify it is the correct account
     // mapping accounts stored as linked list so we iterate until empty
     let mut akey = Pubkey::from_str(&c.pyth_key).unwrap();
 
     loop {
-        let map_data = rpc_client.get_account_data(&akey).unwrap();
+        let map_data = c.rpc_client.get_account_data(&akey).unwrap();
         let map_acct = cast::<Mapping>(&map_data).unwrap();
         assert_eq!(map_acct.magic, MAGIC, "not a valid pyth account");
         assert_eq!(
@@ -61,7 +42,7 @@ fn main() {
         let mut i = 0;
         for prod_akey in &map_acct.products {
             let prod_pkey = Pubkey::new(&prod_akey.val);
-            let prod_data = rpc_client.get_account_data(&prod_pkey).unwrap();
+            let prod_data = c.rpc_client.get_account_data(&prod_pkey).unwrap();
             let prod_acct = cast::<Product>(&prod_data);
             let prod_acct = match prod_acct {
                 Some(prod_acct) => prod_acct,
@@ -99,7 +80,7 @@ fn main() {
             let px_pkey = Pubkey::new(&prod_acct.px_acc.val);
             println!("price_account .. {:?}", px_pkey);
 
-            let pd = rpc_client.get_account_data(&px_pkey).unwrap();
+            let pd = c.rpc_client.get_account_data(&px_pkey).unwrap();
             let pa = cast::<Price>(&pd).unwrap();
             assert_eq!(pa.magic, MAGIC, "not a valid pyth account");
             assert_eq!(
@@ -144,8 +125,9 @@ fn main() {
                     println!("getting next batch of transactions");
                 }
 
-                let px_sigs =
-                    rpc_client.get_signatures_for_address_with_config(&px_pkey, rqt_config);
+                let px_sigs = c
+                    .rpc_client
+                    .get_signatures_for_address_with_config(&px_pkey, rqt_config);
                 let px_sig_rslt = px_sigs.unwrap();
                 for sig in px_sig_rslt {
                     // check for signature error
@@ -167,7 +149,8 @@ fn main() {
                     // request transaction from signature
                     let s = Signature::from_str(&sig.signature).unwrap();
                     last_sig = Some(s);
-                    let txn = rpc_client
+                    let txn = c
+                        .rpc_client
                         .get_transaction(&s, UiTransactionEncoding::Base64)
                         .unwrap();
                     let t = txn.transaction.transaction.decode().unwrap(); // transaction
@@ -207,6 +190,7 @@ fn main() {
 
                     // update progress bar
                     let progress_microseconds = (start - block_t).num_microseconds().unwrap();
+                    let interval_microseconds = c.interval.num_microseconds().unwrap();
                     let time_progress =
                         (100.0 * progress_microseconds as f32) / (interval_microseconds as f32);
                     progress_bar.set_progression(time_progress as usize);
@@ -226,7 +210,7 @@ fn main() {
             let twap_price = (open_price + close_price + low_price + high_price) / 4.0;
 
             println!("");
-            println!("TWAP Interval: {} minutes", interval_min);
+            println!("TWAP Interval: {} minutes", c.interval.num_minutes());
             println!("Open: ${} ({})", open_price, open_slot);
             println!("High: ${}", high_price);
             println!("Low: ${}", low_price);

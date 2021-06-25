@@ -1,4 +1,15 @@
-use pyth_client::{PriceType, Product, PROD_HDR_SIZE};
+use pyth_client::{PriceStatus, PriceType, Product, PROD_HDR_SIZE};
+
+#[repr(C)]
+pub struct UpdatePriceData {
+    pub version: u32,
+    pub cmd: i32,
+    pub status: PriceStatus,
+    pub unused: u32,
+    pub price: i64,
+    pub conf: u64,
+    pub pub_slot: u64,
+}
 
 pub fn get_attr_str<'a, T>(ite: &mut T) -> String
 where
