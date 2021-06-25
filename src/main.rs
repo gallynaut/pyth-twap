@@ -3,15 +3,13 @@ use chrono::{Duration, Utc};
 use clap::{App, Arg};
 use progress_bar::color::{Color, Style};
 use progress_bar::progress_bar::ProgressBar;
-use pyth_client::{
-    AccountType, Mapping, Price, PriceStatus, PriceType, Product, MAGIC, PROD_HDR_SIZE, VERSION_1,
-};
+use pyth_client::{AccountType, Mapping, Price, PriceStatus, Product, MAGIC, VERSION_1};
+use pyth_twap::{cast, get_attr_symbol, get_price_type};
 use solana_client::rpc_client::{GetConfirmedSignaturesForAddress2Config, RpcClient};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
 use std::collections::HashMap;
-use std::str;
 use std::str::FromStr;
 use std::time::{Duration as StdDuration, UNIX_EPOCH};
 
@@ -302,51 +300,4 @@ fn main() {
         "https://pyth.network/markets/"
     );
     return;
-}
-
-fn get_attr_str<'a, T>(ite: &mut T) -> String
-where
-    T: Iterator<Item = &'a u8>,
-{
-    let mut len = *ite.next().unwrap() as usize;
-    let mut val = String::with_capacity(len);
-    while len > 0 {
-        val.push(*ite.next().unwrap() as char);
-        len -= 1;
-    }
-    return val;
-}
-
-// loops through a products reference data (key/val) and
-// returns the value for symbol
-fn get_attr_symbol(prod_acct: &Product) -> String {
-    let mut pr_attr_sz = prod_acct.size as usize - PROD_HDR_SIZE;
-    let mut pr_attr_it = (&prod_acct.attr[..]).iter();
-    while pr_attr_sz > 0 {
-        let key = get_attr_str(&mut pr_attr_it);
-        let val = get_attr_str(&mut pr_attr_it);
-        // println!("  {:.<16} {}", key, val);
-        if key == "symbol" {
-            return val.to_string();
-        }
-        pr_attr_sz -= 2 + key.len() + val.len();
-    }
-    return "".to_string();
-}
-fn get_price_type(ptype: &PriceType) -> &'static str {
-    match ptype {
-        PriceType::Unknown => "unknown",
-        PriceType::Price => "price",
-        PriceType::TWAP => "twap",
-        PriceType::Volatility => "volatility",
-    }
-}
-
-pub fn cast<T>(d: &[u8]) -> Option<&T> {
-    let (_, pxa, _) = unsafe { d.align_to::<T>() };
-    if pxa.len() > 0 {
-        Some(&pxa[0])
-    } else {
-        None
-    }
 }
