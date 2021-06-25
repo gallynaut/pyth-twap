@@ -1,6 +1,6 @@
+mod config;
 use chrono::prelude::DateTime;
-use chrono::{Duration, Utc};
-use clap::{App, Arg};
+use chrono::Utc;
 use progress_bar::color::{Color, Style};
 use progress_bar::progress_bar::ProgressBar;
 use pyth_client::{AccountType, Mapping, Price, PriceStatus, Product, MAGIC, VERSION_1};
@@ -10,6 +10,7 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
 use std::collections::HashMap;
+use std::process;
 use std::str::FromStr;
 use std::time::{Duration as StdDuration, UNIX_EPOCH};
 
@@ -25,77 +26,22 @@ pub struct UpdatePriceData {
 }
 
 fn main() {
-    // validate command line arguements
-    let matches = App::new("Pyth-TWAP")
-        .version("0.1.0")
-        .author("Conner <ConnerNGallagher@gmail.com>")
-        .about("using pyth price oracle to calculate twap")
-        .arg(
-            Arg::with_name("symbol")
-                .help("the symbol to calculate the TWAP for (BTC/USD)")
-                .index(1)
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("debug")
-                .help("print debug information verbosely")
-                .short("d"),
-        )
-        .arg(
-            Arg::with_name("local")
-                .short("l")
-                .help("run on a local instance of solana (http://localhost:8899)"),
-        )
-        .arg(
-            Arg::with_name("pyth")
-                .short("p")
-                .help("sets the public key of the pyth mapping account")
-                .takes_value(true)
-                .default_value("ArppEFcsybCLE8CRtQJLQ9tLv2peGmQoKWFuiUWm4KBP")
-                .required(false),
-        )
-        .arg(
-            Arg::with_name("interval")
-                .short("i")
-                .help("the interval to calculate the TWAP over in minutes")
-                .takes_value(true)
-                .default_value("60")
-                .required(false),
-        )
-        .get_matches();
+    let c = config::Config::new().unwrap_or_else(|err| {
+        println!("Config Err: {}", err);
+        process::exit(1);
+    });
 
-    let symbol = matches.value_of("symbol").unwrap();
-    println!("Value for symbol: {}", symbol);
-
-    let interval = matches
-        .value_of("interval")
-        .unwrap()
-        .parse::<i64>()
-        .unwrap();
-    if interval == 0 || interval > 1440 {
-        // panic
-        println!("interval should be between 1 and 1440 minutes (1 day)");
-        return;
-    }
-    let interval = Duration::seconds(interval.checked_mul(60).unwrap());
-    let interval_min = interval.num_minutes();
-    let interval_microseconds = interval.num_microseconds().unwrap();
+    // clean up interval times for easier use
+    let interval_min = c.interval.num_minutes();
+    let interval_microseconds = c.interval.num_microseconds().unwrap();
     println!("Value for interval: {} minute(s)", interval_min);
 
-    let pyth_map_key = matches.value_of("pyth").unwrap();
-    println!("using pyth map key: {}", pyth_map_key);
-
-    let mut url = "http://api.devnet.solana.com";
-    if matches.is_present("local") {
-        url = "http://localhost";
-    }
-
-    println!("Connecting to Solana @: {}", url);
-    let rpc_client = RpcClient::new(url.to_string());
+    println!("Connecting to Solana @: {}", c.solana_url);
+    let rpc_client = RpcClient::new(c.solana_url);
 
     // read pyth_map_key account data and verify it is the correct account
     // mapping accounts stored as linked list so we iterate until empty
-    let mut akey = Pubkey::from_str(pyth_map_key).unwrap();
+    let mut akey = Pubkey::from_str(&c.pyth_key).unwrap();
 
     loop {
         let map_data = rpc_client.get_account_data(&akey).unwrap();
@@ -134,13 +80,13 @@ fn main() {
 
             // loop through reference attributes and find symbol
             let pr_attr_sym = get_attr_symbol(prod_acct);
-            if pr_attr_sym != symbol {
+            if pr_attr_sym != c.symbol {
                 i += 1;
                 if i == map_acct.num {
                     break;
                 }
-                if matches.is_present("debug") {
-                    println!("symbols do not match {} v {}", symbol, pr_attr_sym);
+                if c.debug {
+                    println!("symbols do not match {} v {}", c.symbol, pr_attr_sym);
                 }
                 continue;
             }
@@ -194,7 +140,7 @@ fn main() {
                     limit: None,
                     commitment: None,
                 };
-                if matches.is_present("debug") {
+                if c.debug {
                     println!("getting next batch of transactions");
                 }
 
@@ -212,8 +158,8 @@ fn main() {
                     let block_t = sig.block_time.unwrap() as u64;
                     let block_t = UNIX_EPOCH + StdDuration::from_secs(block_t);
                     let block_t = DateTime::<Utc>::from(block_t);
-                    if (start - block_t) > interval {
-                        if matches.is_present("debug") {
+                    if (start - block_t) > c.interval {
+                        if c.debug {
                             println!("interval exceeded, breaking out of loop");
                         }
                         break 'process_px_acct;
@@ -239,7 +185,7 @@ fn main() {
                         continue;
                     }
 
-                    if matches.is_present("debug") {
+                    if c.debug {
                         println!("{}: p: {}, c: {}", data.pub_slot, data.price, data.conf);
                     }
 
@@ -294,7 +240,7 @@ fn main() {
         }
         akey = Pubkey::new(&map_acct.next.val);
     }
-    println!("No matching symbol found for {}", symbol);
+    println!("No matching symbol found for {}", c.symbol);
     println!(
         "See {} for a list of symbols",
         "https://pyth.network/markets/"
