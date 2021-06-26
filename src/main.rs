@@ -110,13 +110,15 @@ fn main() {
             }
             if data.price < low {
                 low = data.price;
-            } else if data.price > high {
+            }
+            if data.price > high {
                 high = data.price;
             }
             if data.pub_slot < open_slot {
                 open_slot = data.pub_slot;
                 open = data.price;
-            } else if data.pub_slot > close_slot {
+            }
+            if data.pub_slot > close_slot {
                 close_slot = data.pub_slot;
                 close = data.price;
             }
