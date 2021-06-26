@@ -32,6 +32,7 @@ pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static st
         if !valid_mapping_account(&map_acct) {
             panic!("not a valid pyth mapping account");
         }
+        println!("mapping_account .. {:?}", akey);
 
         // loop over products until we find one that matches are symbol
         let mut i = 0;

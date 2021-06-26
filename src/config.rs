@@ -67,7 +67,6 @@ impl Config {
         println!("Value for interval: {} minute(s)", interval.num_minutes());
 
         let pyth_key = matches.value_of("pyth").unwrap().to_string();
-        println!("using pyth map key: {}", pyth_key);
 
         let mut url = "http://api.devnet.solana.com";
         if matches.is_present("local") {
