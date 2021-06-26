@@ -152,6 +152,16 @@ fn valid_price_account_type(acct: &Price, ptype: &str) -> bool {
     }
     true
 }
+pub fn valid_price_instruction(instr: &UpdatePriceData) -> bool {
+    let instr_status = match &instr.status {
+        PriceStatus::Trading => "trading",
+        _ => "unknown",
+    };
+    if instr_status != "trading" {
+        return false;
+    }
+    true
+}
 pub fn get_attr_str<'a, T>(ite: &mut T) -> String
 where
     T: Iterator<Item = &'a u8>,

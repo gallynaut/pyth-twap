@@ -99,8 +99,8 @@ fn main() {
                 None => continue, // skip value
                 Some(i) => i,     // unwrap
             };
-            // check if empty price
-            if data.price == 0 {
+            // check if empty price or invalid status
+            if data.price == 0 || !pyth::valid_price_instruction(&data) {
                 continue;
             }
 
@@ -138,14 +138,14 @@ fn main() {
     let low_price = (low as f32) * scale_factor;
     let high_price = (high as f32) * scale_factor;
     let twap_price = (open_price + close_price + low_price + high_price) / 4.0;
-    // let pyth_twap_price = (price_account.twap as f32) * scale_factor;
 
     println!("");
-    println!("TWAP Interval: {} minutes", c.interval.num_minutes());
+    println!("TWAP Interval: {} minute(s)", c.interval.num_minutes());
     println!("Open: ${} ({})", open_price, open_slot);
     println!("High: ${}", high_price);
     println!("Low: ${}", low_price);
     println!("Close: ${} ({})", close_price, close_slot);
     println!("Calculated TWAP Price: ${}", twap_price);
+    // let pyth_twap_price = (price_account.twap as f32) * scale_factor;
     // println!("Pyth TWAP Price: ${}", pyth_twap_price);
 }
