@@ -5,7 +5,7 @@ use solana_program::pubkey::Pubkey;
 use std::str::FromStr;
 
 #[repr(C)]
-pub struct UpdatePriceData {
+pub struct UpdatePriceInstruction {
     pub version: u32,
     pub cmd: i32,
     pub status: PriceStatus,
@@ -21,6 +21,75 @@ pub struct PriceAccount {
     pub twap: i64,
 }
 
+pub trait PythAccount {
+    fn is_valid(&self) -> bool;
+}
+impl PythAccount for Mapping {
+    fn is_valid(&self) -> bool {
+        if self.magic != MAGIC || self.atype != AccountType::Mapping as u32 || self.ver != VERSION_2
+        {
+            return false;
+        }
+        true
+    }
+}
+impl PythAccount for Product {
+    fn is_valid(&self) -> bool {
+        if self.magic != MAGIC || self.atype != AccountType::Product as u32 || self.ver != VERSION_2
+        {
+            return false;
+        }
+        true
+    }
+}
+trait PythProduct {
+    fn get_symbol(&self) -> Option<String>;
+}
+
+impl PythProduct for Product {
+    fn get_symbol(&self) -> Option<String> {
+        let mut pr_attr_sz = self.size as usize - PROD_HDR_SIZE;
+        let mut pr_attr_it = (&self.attr[..]).iter();
+        while pr_attr_sz > 0 {
+            let key = get_attr_str(&mut pr_attr_it);
+            let val = get_attr_str(&mut pr_attr_it);
+            // println!("  {:.<16} {}", key, val);
+            if key == "symbol" {
+                return Some(val);
+            }
+            pr_attr_sz -= 2 + key.len() + val.len();
+        }
+        None
+    }
+}
+
+impl PythAccount for Price {
+    fn is_valid(&self) -> bool {
+        if self.magic != MAGIC || self.atype != AccountType::Price as u32 || self.ver != VERSION_2 {
+            return false;
+        }
+        let acct_ptype = match &self.ptype {
+            PriceType::Unknown => "unknown",
+            PriceType::Price => "price",
+        };
+        if acct_ptype != "price" {
+            return false;
+        }
+        true
+    }
+}
+impl PythAccount for UpdatePriceInstruction {
+    fn is_valid(&self) -> bool {
+        let instr_status = match &self.status {
+            PriceStatus::Trading => "trading",
+            _ => "unknown",
+        };
+        if instr_status != "trading" {
+            return false;
+        }
+        true
+    }
+}
 pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static str> {
     // read pyth_map_key account data and verify it is the correct account
     // mapping accounts stored as linked list so we iterate until empty
@@ -29,10 +98,11 @@ pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static st
     loop {
         let map_data = c.rpc_client.get_account_data(&akey).unwrap();
         let map_acct = cast::<Mapping>(&map_data).unwrap();
-        if !valid_mapping_account(&map_acct) {
+        if !map_acct.is_valid() {
             panic!("not a valid pyth mapping account");
         }
-        println!("mapping_account .. {:?}", akey);
+
+        println!("{:.<20} {:?}", "mapping_account", akey);
 
         // loop over products until we find one that matches are symbol
         let mut i = 0;
@@ -44,12 +114,16 @@ pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static st
                 Some(prod_acct) => prod_acct,
                 None => continue, // go to next loop if no product account
             };
-            if !valid_product_account(&prod_acct) {
+            if !prod_acct.is_valid() {
                 continue;
             }
 
             // loop through reference attributes and find symbol
-            let prod_attr_sym = get_attr_symbol(prod_acct);
+            let prod_attr_sym = prod_acct.get_symbol();
+            let prod_attr_sym = match prod_attr_sym {
+                Some(s) => s,
+                None => continue,
+            };
             if prod_attr_sym != c.symbol {
                 i += 1;
                 if i == map_acct.num {
@@ -60,10 +134,9 @@ pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static st
                 }
                 continue;
             }
-            println!("product_account .. {:?}", prod_pkey);
+            println!("{:.<20} {:?}", "product_account", prod_pkey);
 
             if !prod_acct.px_acc.is_valid() {
-                println!("pyth error: price account is invalid");
                 return Err("pyth error: price account is invalid");
             }
 
@@ -74,20 +147,17 @@ pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static st
                 let price_data = c.rpc_client.get_account_data(&price_pkey);
                 let price_data = match price_data {
                     Ok(price_acct) => price_acct,
-                    Err(_) => return Err("errorrrrrrr"), // go to next loop if no product account
+                    Err(_) => return Err("error getting price data"), // go to next loop if no product account
                 };
                 p = cast::<Price>(&price_data).unwrap();
-                if !valid_price_account(&p) {
-                    return Err("pyth error: price account is invalid");
-                }
-
-                if valid_price_account_type(&p, "price") {
+                if p.is_valid() {
                     return Ok(PriceAccount {
                         key: price_pkey,
                         expo: p.expo,
                         twap: p.twap,
                     });
                 }
+
                 // go to next Mapping account in list
                 if !p.next.is_valid() {
                     return Err("price account not found");
@@ -124,44 +194,6 @@ pub fn cast<T>(d: &[u8]) -> Option<&T> {
     }
 }
 
-fn valid_mapping_account(acct: &Mapping) -> bool {
-    if acct.magic != MAGIC || acct.atype != AccountType::Mapping as u32 || acct.ver != VERSION_2 {
-        return false;
-    }
-    true
-}
-fn valid_product_account(acct: &Product) -> bool {
-    if acct.magic != MAGIC || acct.atype != AccountType::Product as u32 || acct.ver != VERSION_2 {
-        return false;
-    }
-    true
-}
-fn valid_price_account(acct: &Price) -> bool {
-    if acct.magic != MAGIC || acct.atype != AccountType::Price as u32 || acct.ver != VERSION_2 {
-        return false;
-    }
-    true
-}
-fn valid_price_account_type(acct: &Price, ptype: &str) -> bool {
-    let acct_ptype = match &acct.ptype {
-        PriceType::Unknown => "unknown",
-        PriceType::Price => "price",
-    };
-    if acct_ptype != ptype {
-        return false;
-    }
-    true
-}
-pub fn valid_price_instruction(instr: &UpdatePriceData) -> bool {
-    let instr_status = match &instr.status {
-        PriceStatus::Trading => "trading",
-        _ => "unknown",
-    };
-    if instr_status != "trading" {
-        return false;
-    }
-    true
-}
 pub fn get_attr_str<'a, T>(ite: &mut T) -> String
 where
     T: Iterator<Item = &'a u8>,
@@ -173,20 +205,4 @@ where
         len -= 1;
     }
     return val;
-}
-// loops through a products reference data (key/val) and
-// returns the value for symbol
-pub fn get_attr_symbol(prod_acct: &Product) -> String {
-    let mut pr_attr_sz = prod_acct.size as usize - PROD_HDR_SIZE;
-    let mut pr_attr_it = (&prod_acct.attr[..]).iter();
-    while pr_attr_sz > 0 {
-        let key = get_attr_str(&mut pr_attr_it);
-        let val = get_attr_str(&mut pr_attr_it);
-        // println!("  {:.<16} {}", key, val);
-        if key == "symbol" {
-            return val.to_string();
-        }
-        pr_attr_sz -= 2 + key.len() + val.len();
-    }
-    return "".to_string();
 }

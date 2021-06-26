@@ -4,6 +4,7 @@ use chrono::prelude::DateTime;
 use chrono::Utc;
 use progress_bar::color::{Color, Style};
 use progress_bar::progress_bar::ProgressBar;
+use pyth::PythAccount;
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
@@ -24,7 +25,7 @@ fn main() {
             return;
         }
     };
-    println!("price_account   .. {:?}", price_account.key);
+    println!("{:.<20} {:?}", "price_account", price_account.key);
 
     println!("");
     println!("Parsing price account transactions");
@@ -70,7 +71,7 @@ fn main() {
             // check for signature error
             if let Some(_) = sig.err {
                 if c.debug {
-                    println!("Sig Err: {:?}", sig.err);
+                    println!("{}: Sig Err: {:?}", sig.slot, sig.err.unwrap());
                 }
                 continue;
             };
@@ -94,13 +95,13 @@ fn main() {
             let i = &instrs.first().unwrap(); // first instruction
             let d = &i.data;
 
-            let data = pyth::cast::<pyth::UpdatePriceData>(&d);
+            let data = pyth::cast::<pyth::UpdatePriceInstruction>(&d);
             let data = match data {
                 None => continue, // skip value
                 Some(i) => i,     // unwrap
             };
             // check if empty price or invalid status
-            if data.price == 0 || !pyth::valid_price_instruction(&data) {
+            if data.price == 0 || !data.is_valid() {
                 continue;
             }
 
@@ -109,15 +110,13 @@ fn main() {
             }
             if data.price < low {
                 low = data.price;
-            }
-            if data.price > high {
+            } else if data.price > high {
                 high = data.price;
             }
             if data.pub_slot < open_slot {
                 open_slot = data.pub_slot;
                 open = data.price;
-            }
-            if data.pub_slot > close_slot {
+            } else if data.pub_slot > close_slot {
                 close_slot = data.pub_slot;
                 close = data.price;
             }

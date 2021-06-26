@@ -52,7 +52,7 @@ impl Config {
             .get_matches();
 
         let symbol = matches.value_of("symbol").unwrap().to_string();
-        println!("Value for symbol: {}", symbol);
+        println!("{:.<20} {}", "symbol", symbol);
 
         let interval = matches
             .value_of("interval")
@@ -64,7 +64,11 @@ impl Config {
             return Err("interval should be between 1 and 1440 minutes (1 day)");
         }
         let interval = Duration::seconds(interval.checked_mul(60).unwrap());
-        println!("Value for interval: {} minute(s)", interval.num_minutes());
+        println!(
+            "{:.<20} {} minute(s)",
+            "TWAP interval",
+            interval.num_minutes()
+        );
 
         let pyth_key = matches.value_of("pyth").unwrap().to_string();
 
@@ -74,7 +78,7 @@ impl Config {
         }
         let debug = matches.is_present("debug");
 
-        println!("Connecting to Solana @: {}", url);
+        println!("{:.<20} {}", "Solana RPC Url", url);
         let rpc_client = RpcClient::new(url.to_string());
 
         Ok(Config {
