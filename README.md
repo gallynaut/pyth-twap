@@ -7,7 +7,7 @@ Pyth-TWAP takes in a symbol (BTC/USD) and an optional interval in minutes (defau
 | --- | --- | --- |
 | symbol | Y  | The Pyth symbol to calculate the TWAP for. See https://pyth.network/markets |
 | interval | N | The interval to calculate the TWAP over in minutes. Default value is 60. |
-| Pyth mapping key | N | Public key of the Pyth mapping account. Default value is ArppEFcsybCLE8CRtQJLQ9tLv2peGmQoKWFuiUWm4KBP |
+| Pyth mapping key | N | Public key of the Pyth mapping account. Default value is BmA9Z6FjioHJPpjT39QazZyhDRUdZy2ezwx4GiDdE2u2 |
 | local | N | Flag to run on a local Solana instance |
 | debug | N | Flag to turn on verbose logging |
 
