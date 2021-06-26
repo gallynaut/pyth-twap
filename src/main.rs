@@ -138,6 +138,7 @@ fn main() {
     let low_price = (low as f32) * scale_factor;
     let high_price = (high as f32) * scale_factor;
     let twap_price = (open_price + close_price + low_price + high_price) / 4.0;
+    // let pyth_twap_price = (price_account.twap as f32) * scale_factor;
 
     println!("");
     println!("TWAP Interval: {} minutes", c.interval.num_minutes());
@@ -145,5 +146,6 @@ fn main() {
     println!("High: ${}", high_price);
     println!("Low: ${}", low_price);
     println!("Close: ${} ({})", close_price, close_slot);
-    println!("TWAP Price: ${}", twap_price);
+    println!("Calculated TWAP Price: ${}", twap_price);
+    // println!("Pyth TWAP Price: ${}", pyth_twap_price);
 }

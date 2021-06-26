@@ -1,5 +1,5 @@
 use crate::config;
-use pyth_client::{AccountType, Mapping, Price, Product, MAGIC, VERSION_1};
+use pyth_client::{AccountType, Mapping, Price, Product, MAGIC, VERSION_2};
 use pyth_client::{PriceStatus, PriceType, PROD_HDR_SIZE};
 use solana_program::pubkey::Pubkey;
 use std::str::FromStr;
@@ -18,6 +18,7 @@ pub struct UpdatePriceData {
 pub struct PriceAccount {
     pub key: Pubkey,
     pub expo: i32,
+    pub twap: i64,
 }
 
 pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static str> {
@@ -78,22 +79,23 @@ pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static st
                 if !valid_price_account(&p) {
                     return Err("pyth error: price account is invalid");
                 }
-                if !valid_price_account_type(&p, "price") {
-                    // go to next Mapping account in list
-                    if !p.next.is_valid() {
-                        return Err("price account not found");
-                    }
-                    if c.debug {
-                        println!("going to next price account");
-                    }
-                    price_pkey = Pubkey::new(&p.next.val);
-                    continue;
-                }
 
-                return Ok(PriceAccount {
-                    key: price_pkey,
-                    expo: p.expo,
-                });
+                if valid_price_account_type(&p, "price") {
+                    return Ok(PriceAccount {
+                        key: price_pkey,
+                        expo: p.expo,
+                        twap: p.twap,
+                    });
+                }
+                // go to next Mapping account in list
+                if !p.next.is_valid() {
+                    return Err("price account not found");
+                }
+                if c.debug {
+                    println!("going to next price account");
+                }
+                price_pkey = Pubkey::new(&p.next.val);
+                continue;
             }
         }
         // go to next Mapping account in list
@@ -122,19 +124,19 @@ pub fn cast<T>(d: &[u8]) -> Option<&T> {
 }
 
 fn valid_mapping_account(acct: &Mapping) -> bool {
-    if acct.magic != MAGIC || acct.atype != AccountType::Mapping as u32 || acct.ver != VERSION_1 {
+    if acct.magic != MAGIC || acct.atype != AccountType::Mapping as u32 || acct.ver != VERSION_2 {
         return false;
     }
     true
 }
 fn valid_product_account(acct: &Product) -> bool {
-    if acct.magic != MAGIC || acct.atype != AccountType::Product as u32 || acct.ver != VERSION_1 {
+    if acct.magic != MAGIC || acct.atype != AccountType::Product as u32 || acct.ver != VERSION_2 {
         return false;
     }
     true
 }
 fn valid_price_account(acct: &Price) -> bool {
-    if acct.magic != MAGIC || acct.atype != AccountType::Price as u32 || acct.ver != VERSION_1 {
+    if acct.magic != MAGIC || acct.atype != AccountType::Price as u32 || acct.ver != VERSION_2 {
         return false;
     }
     true
@@ -143,8 +145,6 @@ fn valid_price_account_type(acct: &Price, ptype: &str) -> bool {
     let acct_ptype = match &acct.ptype {
         PriceType::Unknown => "unknown",
         PriceType::Price => "price",
-        PriceType::TWAP => "twap",
-        PriceType::Volatility => "volatility",
     };
     if acct_ptype != ptype {
         return false;

@@ -1,6 +1,6 @@
 [package]
 name = "pyth-twap"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Conner <ConnerNGallagher@gmail.com>"]
 edition = "2018"
 description = "using pyth price oracle to calculate twap"
@@ -13,7 +13,7 @@ solana-sdk = "1.7.1"
 solana-program = "1.7.1"
 solana-transaction-status = "1.7.1"
 clap = "2.33.3"
-pyth-client = "0.1.1"
+pyth-client = "0.2.0"
 chrono = "0.4"
 indexmap = "1.6.2"
 progress_bar = "0.1.3"

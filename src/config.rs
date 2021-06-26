@@ -38,7 +38,7 @@ impl Config {
                     .short("p")
                     .help("sets the public key of the pyth mapping account")
                     .takes_value(true)
-                    .default_value("ArppEFcsybCLE8CRtQJLQ9tLv2peGmQoKWFuiUWm4KBP")
+                    .default_value("BmA9Z6FjioHJPpjT39QazZyhDRUdZy2ezwx4GiDdE2u2")
                     .required(false),
             )
             .arg(
