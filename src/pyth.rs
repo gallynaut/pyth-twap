@@ -66,21 +66,35 @@ pub fn get_price_account(c: &config::Config) -> Result<PriceAccount, &'static st
             }
 
             // check if price account is valid
-            let price_pkey = Pubkey::new(&prod_acct.px_acc.val);
-            let price_data = c.rpc_client.get_account_data(&price_pkey);
-            let price_data = match price_data {
-                Ok(price_acct) => price_acct,
-                Err(_) => return Err("errorrrrrrr"), // go to next loop if no product account
-            };
-            let p = cast::<Price>(&price_data).unwrap();
-            if !valid_price_account(&p) {
-                return Err("pyth error: price account is invalid");
-            }
+            let mut price_pkey = Pubkey::new(&prod_acct.px_acc.val);
+            let mut p: &Price;
+            loop {
+                let price_data = c.rpc_client.get_account_data(&price_pkey);
+                let price_data = match price_data {
+                    Ok(price_acct) => price_acct,
+                    Err(_) => return Err("errorrrrrrr"), // go to next loop if no product account
+                };
+                p = cast::<Price>(&price_data).unwrap();
+                if !valid_price_account(&p) {
+                    return Err("pyth error: price account is invalid");
+                }
+                if !valid_price_account_type(&p, "price") {
+                    // go to next Mapping account in list
+                    if !p.next.is_valid() {
+                        return Err("price account not found");
+                    }
+                    if c.debug {
+                        println!("going to next price account");
+                    }
+                    price_pkey = Pubkey::new(&p.next.val);
+                    continue;
+                }
 
-            return Ok(PriceAccount {
-                key: price_pkey,
-                expo: p.expo,
-            });
+                return Ok(PriceAccount {
+                    key: price_pkey,
+                    expo: p.expo,
+                });
+            }
         }
         // go to next Mapping account in list
         if !map_acct.next.is_valid() {
@@ -120,17 +134,19 @@ fn valid_product_account(acct: &Product) -> bool {
     true
 }
 fn valid_price_account(acct: &Price) -> bool {
-    let ptype = match &acct.ptype {
+    if acct.magic != MAGIC || acct.atype != AccountType::Price as u32 || acct.ver != VERSION_1 {
+        return false;
+    }
+    true
+}
+fn valid_price_account_type(acct: &Price, ptype: &str) -> bool {
+    let acct_ptype = match &acct.ptype {
         PriceType::Unknown => "unknown",
         PriceType::Price => "price",
         PriceType::TWAP => "twap",
         PriceType::Volatility => "volatility",
     };
-    if acct.magic != MAGIC
-        || acct.atype != AccountType::Price as u32
-        || acct.ver != VERSION_1
-        || ptype != "price"
-    {
+    if acct_ptype != ptype {
         return false;
     }
     true
