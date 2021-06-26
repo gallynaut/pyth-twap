@@ -56,8 +56,14 @@ fn main() {
         let px_sigs = c
             .rpc_client
             .get_signatures_for_address_with_config(&p.key, rqt_config);
-        let px_sig_rslt = px_sigs.unwrap();
-        for sig in px_sig_rslt {
+        let price_account_signatures = match px_sigs {
+            Ok(result) => result,
+            Err(error) => {
+                println!("Rpc Err: {}", error);
+                continue;
+            }
+        };
+        for sig in price_account_signatures {
             // check for signature error
             let e = sig.err;
             match e {
