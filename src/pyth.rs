@@ -1,5 +1,6 @@
-use pyth_client::{AccountType, Mapping, Price, Product, MAGIC, VERSION_2};
-use pyth_client::{PriceStatus, PriceType, PROD_HDR_SIZE};
+use pyth_client::{
+    AccountType, Mapping, Price, PriceStatus, PriceType, Product, MAGIC, PROD_HDR_SIZE, VERSION_2,
+};
 use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
 use std::str::FromStr;
@@ -155,6 +156,10 @@ impl PythClient {
                 if !prod_acct.px_acc.is_valid() {
                     return Err("pyth price account in valid");
                 }
+                println!(
+                    "size: {}, px_acc: {:?}, attr: {:?}",
+                    prod_acct.size, prod_acct.px_acc.val, prod_acct.attr
+                );
                 return Ok(ProductResult {
                     key: prod_pkey,
                     price_accounts: prod_acct.px_acc.val,
@@ -220,4 +225,68 @@ where
         len -= 1;
     }
     return val;
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::pyth::{PythAccount, PythProduct, MAGIC};
+    use pyth_client::{AccKey, AccountType, Product, VERSION_2};
+    #[cfg(test)]
+    struct Setup {
+        product: Product,
+    }
+    impl Setup {
+        fn new() -> Self {
+            Self {
+                product: Product {
+                    magic: MAGIC - 1,
+                    ver: VERSION_2,
+                    atype: AccountType::Product as u32,
+                    size: 165,
+                    px_acc: AccKey {
+                        val: [
+                            202, 128, 186, 109, 195, 46, 8, 208, 111, 26, 168, 134, 1, 30, 237, 29,
+                            119, 199, 123, 233, 235, 118, 28, 193, 13, 114, 183, 208, 162, 253, 87,
+                            166,
+                        ],
+                    },
+                    attr: [
+                        6, 115, 121, 109, 98, 111, 108, 7, 69, 84, 72, 47, 85, 83, 68, 10, 97, 115,
+                        115, 101, 116, 95, 116, 121, 112, 101, 6, 67, 114, 121, 112, 116, 111, 7,
+                        99, 111, 117, 110, 116, 114, 121, 2, 85, 83, 14, 113, 117, 111, 116, 101,
+                        95, 99, 117, 114, 114, 101, 110, 99, 121, 3, 85, 83, 68, 5, 116, 101, 110,
+                        111, 114, 4, 83, 112, 111, 116, 11, 100, 101, 115, 99, 114, 105, 112, 116,
+                        105, 111, 110, 8, 69, 116, 104, 101, 114, 101, 117, 109, 14, 103, 101, 110,
+                        101, 114, 105, 99, 95, 115, 121, 109, 98, 111, 108, 6, 69, 84, 72, 85, 83,
+                        68, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    ],
+                },
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_product_acct() {
+        let s = Setup::new();
+        assert_eq!(s.product.is_valid(), false);
+    }
+    #[test]
+    fn valid_product_symbol() {
+        let symbol = Setup::new().product.get_symbol().unwrap();
+        let expected_symbol = String::from("ETH/USD");
+        assert_eq!(symbol, expected_symbol);
+    }
 }
