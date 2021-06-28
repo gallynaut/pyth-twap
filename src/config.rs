@@ -50,7 +50,11 @@ impl Config {
             )
             .get_matches();
 
-        let symbol = matches.value_of("symbol").unwrap().to_string();
+        let symbol = matches
+            .value_of("symbol")
+            .unwrap()
+            .to_string()
+            .to_ascii_uppercase();
         println!("{:.<20} {}", "symbol", symbol);
 
         let interval = matches
