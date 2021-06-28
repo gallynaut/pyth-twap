@@ -239,7 +239,7 @@ mod tests {
         fn new() -> Self {
             Self {
                 product: Product {
-                    magic: MAGIC - 1,
+                    magic: MAGIC,
                     ver: VERSION_2,
                     atype: AccountType::Product as u32,
                     size: 165,
@@ -280,7 +280,9 @@ mod tests {
 
     #[test]
     fn invalid_product_acct() {
-        let s = Setup::new();
+        let mut s = Setup::new();
+        assert_eq!(s.product.is_valid(), true);
+        s.product.magic = s.product.magic - 1;
         assert_eq!(s.product.is_valid(), false);
     }
     #[test]
