@@ -20,7 +20,7 @@ fn main() {
 
     let pyth = pyth::PythClient::new(&c.url).unwrap();
 
-    println!("{:.<20} {:?}", "mapping_account", c.pyth_key);
+    println!("{:.<20} {}", "mapping_account", &c.pyth_key);
 
     let product_account = match pyth.get_product_account(&c.pyth_key, &c.symbol) {
         Ok(product_account) => product_account,
@@ -29,7 +29,7 @@ fn main() {
             return;
         }
     };
-    println!("{:.<20} {:?}", "product_account", product_account.key);
+    println!("{:.<20} {}", "product_account", &product_account.key);
 
     let price_account = match pyth.get_price_account(product_account.price_accounts) {
         Ok(price_account) => price_account,
@@ -38,7 +38,7 @@ fn main() {
             return;
         }
     };
-    println!("{:.<20} {:?}", "price_account", price_account.key);
+    println!("{:.<20} {}", "price_account", price_account.key);
 
     println!("");
     println!("Parsing price account transactions");
@@ -53,12 +53,12 @@ fn main() {
 
     // do we even need to store this?
     // https://uniswap.org/docs/v2/core-concepts/oracles/
-    let mut open: i64 = 0;
-    let mut close: i64 = 0;
-    let mut high: i64 = 0;
-    let mut low: i64 = std::i64::MAX;
-    let mut open_slot: u64 = std::u64::MAX;
-    let mut close_slot: u64 = 0;
+    let mut open: Option<i64> = None;
+    let mut close: Option<i64> = None;
+    let mut high: Option<i64> = None;
+    let mut low: Option<i64> = None;
+    let mut open_slot: Option<u64> = None;
+    let mut close_slot: Option<u64> = None;
     'process_px_acct: loop {
         let rqt_config = GetConfirmedSignaturesForAddress2Config {
             before: last_sig,
@@ -121,19 +121,19 @@ fn main() {
             if c.debug {
                 println!("{}: p: {}, c: {}", data.pub_slot, data.price, data.conf);
             }
-            if data.price < low {
-                low = data.price;
+            if low == None || data.price < low.unwrap() {
+                low = Some(data.price);
             }
-            if data.price > high {
-                high = data.price;
+            if high == None || data.price > high.unwrap() {
+                high = Some(data.price);
             }
-            if data.pub_slot < open_slot {
-                open_slot = data.pub_slot;
-                open = data.price;
+            if open_slot == None || data.pub_slot < open_slot.unwrap() {
+                open_slot = Some(data.pub_slot);
+                open = Some(data.price);
             }
-            if data.pub_slot > close_slot {
-                close_slot = data.pub_slot;
-                close = data.price;
+            if close_slot == None || data.pub_slot > close_slot.unwrap() {
+                close_slot = Some(data.pub_slot);
+                close = Some(data.price);
             }
 
             // update progress bar
@@ -146,30 +146,30 @@ fn main() {
     }
 
     // on a small enough interval there may not be enough data especially with pyth in beta
-    if open == 0
-        || close == 0
-        || high == 0
-        || low == std::i64::MAX
-        || open_slot == std::u64::MAX
-        || close_slot == 0
+    if open == None
+        || close == None
+        || high == None
+        || low == None
+        || open_slot == None
+        || close_slot == None
     {
         println!("Error calculating TWAP - not enough data");
     }
 
     let base: f32 = 10.0;
     let scale_factor: f32 = base.powi(price_account.expo);
-    let open_price = (open as f32) * scale_factor;
-    let close_price = (close as f32) * scale_factor;
-    let low_price = (low as f32) * scale_factor;
-    let high_price = (high as f32) * scale_factor;
+    let open_price = (open.unwrap() as f32) * scale_factor;
+    let close_price = (close.unwrap() as f32) * scale_factor;
+    let low_price = (low.unwrap() as f32) * scale_factor;
+    let high_price = (high.unwrap() as f32) * scale_factor;
     let twap_price = (open_price + close_price + low_price + high_price) / 4.0;
 
     println!("");
     println!("TWAP Interval: {} minute(s)", c.interval.num_minutes());
-    println!("Open: ${} ({})", open_price, open_slot);
+    println!("Open: ${} ({})", open_price, open_slot.unwrap());
     println!("High: ${}", high_price);
     println!("Low: ${}", low_price);
-    println!("Close: ${} ({})", close_price, close_slot);
+    println!("Close: ${} ({})", close_price, close_slot.unwrap());
     println!("Calculated TWAP Price: ${}", twap_price);
     // let pyth_twap_price = (price_account.twap as f32) * scale_factor;
     // println!("Pyth TWAP Price: ${}", pyth_twap_price);
