@@ -18,7 +18,20 @@ fn main() {
         process::exit(1);
     });
 
-    let price_account = match pyth::get_price_account(&c) {
+    let pyth = pyth::PythClient::new(&c.url).unwrap();
+
+    println!("{:.<20} {:?}", "mapping_account", c.pyth_key);
+
+    let product_account = match pyth.get_product_account(&c.pyth_key, &c.symbol) {
+        Ok(product_account) => product_account,
+        Err(error) => {
+            println!("Pyth Err: {:?}", error);
+            return;
+        }
+    };
+    println!("{:.<20} {:?}", "product_account", product_account.key);
+
+    let price_account = match pyth.get_price_account(product_account.price_accounts) {
         Ok(price_account) => price_account,
         Err(error) => {
             println!("Pyth Err: {:?}", error);
@@ -57,8 +70,8 @@ fn main() {
             println!("getting next batch of transactions");
         }
 
-        let px_sigs = c
-            .rpc_client
+        let px_sigs = pyth
+            .client
             .get_signatures_for_address_with_config(&price_account.key, rqt_config);
         let price_account_signatures = match px_sigs {
             Ok(result) => result,
@@ -86,8 +99,8 @@ fn main() {
             // request transaction from signature
             let s = Signature::from_str(&sig.signature).unwrap();
             last_sig = Some(s);
-            let txn = c
-                .rpc_client
+            let txn = pyth
+                .client
                 .get_transaction(&s, UiTransactionEncoding::Base64)
                 .unwrap();
             let t = txn.transaction.transaction.decode().unwrap(); // transaction
@@ -101,7 +114,7 @@ fn main() {
                 Some(i) => i,     // unwrap
             };
             // check if empty price or invalid status
-            if data.price == 0 || !data.is_valid() {
+            if !data.is_valid() {
                 continue;
             }
 

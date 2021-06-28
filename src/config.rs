@@ -1,13 +1,12 @@
 use chrono::Duration;
 use clap::{App, Arg};
-use solana_client::rpc_client::RpcClient;
 
 pub struct Config {
     pub symbol: String,
     pub interval: Duration,
     pub pyth_key: String,
     pub debug: bool,
-    pub rpc_client: RpcClient,
+    pub url: String,
 }
 
 impl Config {
@@ -79,14 +78,13 @@ impl Config {
         let debug = matches.is_present("debug");
 
         println!("{:.<20} {}", "Solana RPC Url", url);
-        let rpc_client = RpcClient::new(url.to_string());
 
         Ok(Config {
             symbol,
             interval,
             pyth_key,
             debug,
-            rpc_client,
+            url: url.to_string(),
         })
     }
 }
