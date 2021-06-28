@@ -46,7 +46,9 @@ fn main() {
     progress_bar.set_action(" Progress", Color::Blue, Style::Bold);
 
     // Loop through transactions and get last N transactions over the given interval
-    let start = Utc::now();
+    let start_t = Utc::now();
+    let end_t = start_t - c.interval;
+    let interval_microseconds = c.interval.num_microseconds().unwrap();
 
     // we can request 1000 sig per req
     let mut last_sig: Option<Signature> = None;
@@ -66,9 +68,6 @@ fn main() {
             limit: None,
             commitment: None,
         };
-        if c.debug {
-            println!("getting next batch of transactions");
-        }
 
         let px_sigs = pyth
             .client
@@ -92,7 +91,7 @@ fn main() {
             let block_t = sig.block_time.unwrap() as u64;
             let block_t = UNIX_EPOCH + StdDuration::from_secs(block_t);
             let block_t = DateTime::<Utc>::from(block_t);
-            if (start - block_t) > c.interval {
+            if block_t < end_t {
                 progress_bar.set_progression(100);
                 break 'process_px_acct;
             }
@@ -137,11 +136,13 @@ fn main() {
             }
 
             // update progress bar
-            let progress_microseconds = (start - block_t).num_microseconds().unwrap();
-            let interval_microseconds = c.interval.num_microseconds().unwrap();
+            let progress_microseconds = (start_t - block_t).num_microseconds().unwrap();
             let time_progress =
                 (100.0 * progress_microseconds as f32) / (interval_microseconds as f32);
             progress_bar.set_progression(time_progress as usize);
+        }
+        if c.debug {
+            println!("getting next batch of transactions");
         }
     }
 
