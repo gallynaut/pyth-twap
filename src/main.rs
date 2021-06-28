@@ -145,6 +145,17 @@ fn main() {
         }
     }
 
+    // on a small enough interval there may not be enough data especially with pyth in beta
+    if open == 0
+        || close == 0
+        || high == 0
+        || low == std::i64::MAX
+        || open_slot == std::u64::MAX
+        || close_slot == 0
+    {
+        println!("Error calculating TWAP - not enough data");
+    }
+
     let base: f32 = 10.0;
     let scale_factor: f32 = base.powi(price_account.expo);
     let open_price = (open as f32) * scale_factor;
