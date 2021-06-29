@@ -126,10 +126,13 @@ impl PythClient {
         let mut akey = Pubkey::from_str(&map_key).unwrap();
 
         loop {
-            let map_data = self.client.get_account_data(&akey).unwrap();
+            let map_data = match self.client.get_account_data(&akey) {
+                Err(_) => return Err("not a valid pyth mapping account"),
+                Ok(i) => i,
+            };
             let map_acct = cast::<Mapping>(&map_data).unwrap();
             if !map_acct.is_valid() {
-                panic!("not a valid pyth mapping account");
+                return Err("not a valid pyth mapping account");
             }
 
             // loop over products until we find one that matches are symbol
