@@ -3,6 +3,7 @@ use pyth_client::{
 };
 use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey::Pubkey;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[repr(C)]
@@ -50,22 +51,33 @@ impl PythAccount for Product {
 }
 trait PythProduct {
     fn get_symbol(&self) -> Option<String>;
+    fn decode_attributes(&self) -> Option<HashMap<String, String>>;
 }
 
 impl PythProduct for Product {
     fn get_symbol(&self) -> Option<String> {
+        let attr_map = match self.decode_attributes() {
+            None => return None,
+            Some(i) => i,
+        };
+        let k = String::from("symbol");
+        match attr_map.get(&k) {
+            Some(i) => return Some(i.clone()),
+            None => return None,
+        };
+    }
+    fn decode_attributes(&self) -> Option<HashMap<String, String>> {
+        let mut attributes = HashMap::new();
         let mut pr_attr_sz = self.size as usize - PROD_HDR_SIZE;
         let mut pr_attr_it = (&self.attr[..]).iter();
         while pr_attr_sz > 0 {
             let key = get_attr_str(&mut pr_attr_it);
             let val = get_attr_str(&mut pr_attr_it);
-            // println!("  {:.<16} {}", key, val);
-            if key == "symbol" {
-                return Some(val);
-            }
             pr_attr_sz -= 2 + key.len() + val.len();
+            // println!("{:.<16} {}", key, val);
+            attributes.insert(key, val);
         }
-        None
+        Some(attributes)
     }
 }
 
@@ -156,10 +168,6 @@ impl PythClient {
                 if !prod_acct.px_acc.is_valid() {
                     return Err("pyth price account in valid");
                 }
-                println!(
-                    "size: {}, px_acc: {:?}, attr: {:?}",
-                    prod_acct.size, prod_acct.px_acc.val, prod_acct.attr
-                );
                 return Ok(ProductResult {
                     key: prod_pkey,
                     price_accounts: prod_acct.px_acc.val,
