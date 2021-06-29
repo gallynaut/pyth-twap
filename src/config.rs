@@ -74,6 +74,9 @@ impl Config {
         );
 
         let pyth_key = matches.value_of("pyth").unwrap().to_string();
+        if pyth_key.len() != 44 {
+            return Err("pyth key is wrong number of characters");
+        }
 
         let mut url = "http://api.devnet.solana.com";
         if matches.is_present("local") {
