@@ -86,25 +86,19 @@ impl PythAccount for Price {
         if self.magic != MAGIC || self.atype != AccountType::Price as u32 || self.ver != VERSION_2 {
             return false;
         }
-        let acct_ptype = match &self.ptype {
-            PriceType::Unknown => "unknown",
+        let _ = match &self.ptype {
             PriceType::Price => "price",
+            _ => return false,
         };
-        if acct_ptype != "price" {
-            return false;
-        }
         true
     }
 }
 impl PythAccount for UpdatePriceInstruction {
     fn is_valid(&self) -> bool {
-        let instr_status = match &self.status {
+        let _ = match &self.status {
             PriceStatus::Trading => "trading",
-            _ => "unknown",
+            _ => return false,
         };
-        if instr_status != "trading" {
-            return false;
-        }
         if self.price == 0 {
             return false;
         }
@@ -143,8 +137,7 @@ impl PythClient {
             for prod_akey in &map_acct.products {
                 let prod_pkey = Pubkey::new(&prod_akey.val);
                 let prod_data = self.client.get_account_data(&prod_pkey).unwrap();
-                let prod_acct = cast::<Product>(&prod_data);
-                let prod_acct = match prod_acct {
+                let prod_acct = match cast::<Product>(&prod_data) {
                     Some(prod_acct) => prod_acct,
                     None => continue, // go to next loop if no product account
                 };
@@ -153,8 +146,7 @@ impl PythClient {
                 }
 
                 // loop through reference attributes and find symbol
-                let prod_attr_sym = prod_acct.get_symbol();
-                let prod_attr_sym = match prod_attr_sym {
+                let prod_attr_sym = match prod_acct.get_symbol() {
                     Some(s) => s,
                     None => continue,
                 };
@@ -190,8 +182,7 @@ impl PythClient {
         let mut price_pkey = Pubkey::new(&px_acct);
         let mut p: &Price;
         loop {
-            let price_data = self.client.get_account_data(&price_pkey);
-            let price_data = match price_data {
+            let price_data = match self.client.get_account_data(&price_pkey) {
                 Ok(price_acct) => price_acct,
                 Err(_) => return Err("error getting price data"), // go to next loop if no product account
             };

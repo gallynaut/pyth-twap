@@ -19,7 +19,6 @@ fn main() {
     });
 
     let pyth = pyth::PythClient::new(&c.url).unwrap();
-
     println!("{:.<20} {}", "mapping_account", &c.pyth_key);
 
     let product_account = match pyth.get_product_account(&c.pyth_key, &c.symbol) {
@@ -107,8 +106,7 @@ fn main() {
             let i = &instrs.first().unwrap(); // first instruction
             let d = &i.data;
 
-            let data = pyth::cast::<pyth::UpdatePriceInstruction>(&d);
-            let data = match data {
+            let data = match pyth::cast::<pyth::UpdatePriceInstruction>(&d) {
                 None => continue, // skip value
                 Some(i) => i,     // unwrap
             };
