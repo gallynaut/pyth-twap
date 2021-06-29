@@ -30,6 +30,15 @@ pub struct PriceAccount {
 
 pub trait PythAccount {
     fn is_valid(&self) -> bool;
+    // cast byte string into structs
+    fn new<T>(d: &[u8]) -> Option<&T> {
+        let (_, pxa, _) = unsafe { d.align_to::<T>() };
+        if pxa.len() > 0 {
+            return Some(&pxa[0]);
+        } else {
+            return None;
+        }
+    }
 }
 impl PythAccount for Mapping {
     fn is_valid(&self) -> bool {
@@ -130,7 +139,7 @@ impl PythClient {
                 Err(_) => return Err("not a valid pyth mapping account"),
                 Ok(i) => i,
             };
-            let map_acct = cast::<Mapping>(&map_data).unwrap();
+            let map_acct = Mapping::new::<Mapping>(&map_data).unwrap();
             if !map_acct.is_valid() {
                 return Err("not a valid pyth mapping account");
             }
@@ -140,7 +149,7 @@ impl PythClient {
             for prod_akey in &map_acct.products {
                 let prod_pkey = Pubkey::new(&prod_akey.val);
                 let prod_data = self.client.get_account_data(&prod_pkey).unwrap();
-                let prod_acct = match cast::<Product>(&prod_data) {
+                let prod_acct = match Product::new::<Product>(&prod_data) {
                     Some(prod_acct) => prod_acct,
                     None => continue, // go to next loop if no product account
                 };
@@ -189,7 +198,7 @@ impl PythClient {
                 Ok(price_acct) => price_acct,
                 Err(_) => return Err("error getting price data"), // go to next loop if no product account
             };
-            p = cast::<Price>(&price_data).unwrap();
+            p = Price::new::<Price>(&price_data).unwrap();
             if p.is_valid() {
                 return Ok(PriceAccount {
                     key: price_pkey,
@@ -204,15 +213,6 @@ impl PythClient {
             price_pkey = Pubkey::new(&p.next.val);
             continue;
         }
-    }
-}
-
-pub fn cast<T>(d: &[u8]) -> Option<&T> {
-    let (_, pxa, _) = unsafe { d.align_to::<T>() };
-    if pxa.len() > 0 {
-        Some(&pxa[0])
-    } else {
-        None
     }
 }
 
@@ -231,8 +231,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::pyth::{PythAccount, PythProduct, MAGIC};
-    use pyth_client::{AccKey, AccountType, Product, VERSION_2};
+    use crate::pyth::{PythAccount, PythProduct};
+    use pyth_client::{AccKey, AccountType, Product, MAGIC, VERSION_2};
+
     #[cfg(test)]
     struct Setup {
         product: Product,

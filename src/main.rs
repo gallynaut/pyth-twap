@@ -1,10 +1,10 @@
 mod config;
 mod pyth;
+use crate::pyth::{PythAccount, PythClient, UpdatePriceInstruction};
 use chrono::prelude::DateTime;
 use chrono::Utc;
 use progress_bar::color::{Color, Style};
 use progress_bar::progress_bar::ProgressBar;
-use pyth::PythAccount;
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
@@ -18,7 +18,7 @@ fn main() {
         process::exit(1);
     });
 
-    let pyth = pyth::PythClient::new(&c.url).unwrap();
+    let pyth = PythClient::new(&c.url).unwrap();
     println!("{:.<20} {}", "mapping_account", &c.pyth_key);
 
     let product_account = match pyth.get_product_account(&c.pyth_key, &c.symbol) {
@@ -106,7 +106,7 @@ fn main() {
             let i = &instrs.first().unwrap(); // first instruction
             let d = &i.data;
 
-            let data = match pyth::cast::<pyth::UpdatePriceInstruction>(&d) {
+            let data = match UpdatePriceInstruction::new::<UpdatePriceInstruction>(&d) {
                 None => continue, // skip value
                 Some(i) => i,     // unwrap
             };
